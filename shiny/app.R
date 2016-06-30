@@ -32,7 +32,8 @@ ui <- fluidPage(
                      c(None='',
                        'Double Quote'='"',
                        'Single Quote'="'"),
-                     '"')
+                     '"'),
+        downloadButton('downloadData', 'Download Sample Data')
       ),
       mainPanel(
         p(textOutput('type')),
@@ -98,6 +99,16 @@ server <- function(input, output) {
     print(p)
     
   })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() { 'sample_modeleval.csv' },
+    content = function(file) {
+      d_f <- df()
+      d_f$type <- NULL
+      write.csv(d_f, file)
+    }
+  )
+  
 }
 
 # Run the application 
