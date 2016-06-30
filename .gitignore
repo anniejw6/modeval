@@ -1,1 +1,6 @@
 vir/
+shiny/rsconnect/shinyapps.io*
+shiny/rsconnect/shinyapps.io/ai-annie/model_eval.dcf
+.DS_Store
+.RHistory
+.Rproj.user
