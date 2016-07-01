@@ -9,6 +9,20 @@
 
 library(shiny)
 library(ggplot2)
+library(pROC)
+
+# Create initial dataset
+
+gen_df <- function(n){
+  df_initial <- data.frame(
+    score = round(runif(n, 0, 100), 1),
+    type = 'test'
+  )
+  df_initial$outcome <- rbinom(n, 1, df_initial$score * 0.01)
+  df_initial
+}
+
+df_initial <- gen_df(500)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -37,12 +51,25 @@ ui <- fluidPage(
       ),
       mainPanel(
         p(textOutput('type')),
+        h4(textOutput('auc')),
+        p(paste0('The AUCROC is the probability that if you randomly choose someone with a ', 
+                 'positive outcome (e.g., supports the D candidate, or whatever your model is trying to predict), ',
+                 'that person has a higher model score ',
+                 'than a randomly chosen person with a negative outcome ',
+                 '(e.g, supports the R candidate).')),
+        tags$ul(
+           tags$li("If the probability is 1, then you are always right (best)."),
+           tags$li('If the probability is 0.5, then you are guessing randomly (equivalent to not having a model).'),
+           tags$li('If the probability is 0, you are always wrong (worst).')
+        ),
+        p('A "good" support model during a general election has an AUCROC of at least 0.7 and usually 0.8.'),
         h4(textOutput('cor')),
+        p('This is the correlation between the model score and your outcome. This ranges between -1 (worst) and 1 (best).'),
+        h4('Decile Plot'),
+        p('This is a plot of outcomes by decile (these are calculated using score percentiles, not hard cut-offs).'),
         plotOutput('plt')
-#        tableOutput('contents')
-      )
     )
-  
+    )
 )
 
 # Define server logic required to draw a histogram
@@ -53,23 +80,13 @@ server <- function(input, output) {
     inFile <- input$file1
 
     if (is.null(inFile)){
-      n <- 500
-      d_f <- data.frame(
-        score = round(runif(n, 0, 100), 1)
-      )
-      d_f$outcome <- rbinom(n, 1, d_f$score * 0.01)
-      d_f$type <- 'test'
-      
-      return(d_f)
+      return(df_initial)
     }
       
     read.csv(inFile$datapath, header=input$header, sep=input$sep,
              quote=input$quote)
   })
 
-  #output$contents <- renderTable(
-  #  {df()}
-  #  )
   
   output$type <- renderText({
     
@@ -82,9 +99,15 @@ server <- function(input, output) {
     
   })
   output$cor <- renderText(
-    sprintf('The correlation between the model score and your outcome is %s.',
+    sprintf('Correlation: %s',
             round(cor(df()$score, df()$outcome), 3))
     )
+  
+  output$auc <- renderText(
+    sprintf('AUCROC: %s',
+            round(pROC::auc(df()$outcome, df()$score)[1], 3)
+            )
+  )
   
   output$plt <- renderPlot({
     
@@ -92,9 +115,12 @@ server <- function(input, output) {
     d_f$score_bucket <- cut(d_f$score, 
                              breaks = quantile(d_f$score, probs = seq(0, 1, 0.1)),
                              include.lowest = T)
+    d_f$outcome <- factor(d_f$outcome)
     
-    p <- ggplot(d_f, aes(x = score_bucket, fill = factor(outcome)))  + geom_bar() + 
-      theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    p <- ggplot(d_f, aes(x = score_bucket, fill = outcome))  + geom_bar() + 
+      theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+                         axis.ticks.x = element_blank()) + 
+      xlab('')
     
     print(p)
     
@@ -103,7 +129,7 @@ server <- function(input, output) {
   output$downloadData <- downloadHandler(
     filename = function() { 'sample_modeleval.csv' },
     content = function(file) {
-      d_f <- df()
+      d_f <- gen_df(1000)
       d_f$type <- NULL
       write.csv(d_f, file)
     }
